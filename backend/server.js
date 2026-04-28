@@ -68,6 +68,15 @@ app.use('/uploads', express.static(uploadsDir));
 const frontendDir = path.join(__dirname, '..', 'public_html');
 app.use(express.static(frontendDir));
 
+// Explicitly serve index.html for root so Hostinger Node.js doesn't intercept
+app.get('/', (req, res) => {
+  const indexFile = path.join(frontendDir, 'index.html');
+  if (fs.existsSync(indexFile)) {
+    return res.sendFile(indexFile);
+  }
+  res.json({ ok: true, message: 'Counselling backend running', health: '/api/health' });
+});
+
 app.get('/health', (req, res) => {
   res.redirect('/api/health');
 });
