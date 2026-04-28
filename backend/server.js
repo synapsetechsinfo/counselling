@@ -1,36 +1,69 @@
 require('dotenv').config();
 
-const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const Razorpay = require('razorpay');
+const multer = require('multer');
 
 const pool = require('./config/db');
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
+const UPI_VPA = process.env.UPI_VPA || '8411946432@ybl';
+const ADMIN_VERIFY_TOKEN = process.env.ADMIN_VERIFY_TOKEN || '';
 
-if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-  console.warn('Razorpay keys are missing. Payment endpoints will fail until env vars are configured.');
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
+const storage = multer.diskStorage({
+  destination: function destination(req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function filename(req, file, cb) {
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+    const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'].includes(ext) ? ext : '.jpg';
+    cb(null, `proof-${Date.now()}-${Math.floor(Math.random() * 100000)}${safeExt}`);
+  }
 });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+function amountInRupees(amountInPaise) {
+  return Number(amountInPaise) / 100;
+}
+
+function verifyAdminToken(req, res, next) {
+  if (!ADMIN_VERIFY_TOKEN) {
+    return res.status(503).json({ ok: false, message: 'Admin verification token is not configured' });
+  }
+
+  const token = req.headers['x-admin-token'];
+  if (!token || token !== ADMIN_VERIFY_TOKEN) {
+    return res.status(401).json({ ok: false, message: 'Unauthorized admin action' });
+  }
+
+  next();
+}
 
 app.use(helmet());
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN ? process.env.FRONTEND_ORIGIN.split(',') : '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PATCH'],
     credentials: false
   })
 );
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
+app.use('/uploads', express.static(uploadsDir));
 
 const PROGRAM_FEES = {
   'Emotional Wellness Certification': 199900,
@@ -181,110 +214,142 @@ app.post('/api/payments/create-order', async (req, res) => {
       return res.status(400).json({ ok: false, message: 'Invalid program selected' });
     }
 
-    const order = await razorpay.orders.create({
-      amount,
-      currency: 'INR',
-      receipt: `order_${Date.now()}`,
-      payment_capture: 1,
-      notes: {
-        fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        programName: programName.trim()
-      }
-    });
+    const sql = `
+      INSERT INTO trainees
+      (receipt_number, full_name, email, phone, program_name, amount_paid, currency, manual_txn_id, payment_status)
+      VALUES (NULL, ?, ?, ?, ?, ?, 'INR', NULL, 'pending')
+    `;
+
+    const values = [
+      fullName.trim(),
+      email.trim().toLowerCase(),
+      phone.trim(),
+      programName.trim(),
+      amountInRupees(amount)
+    ];
+
+    const [result] = await pool.execute(sql, values);
 
     return res.status(201).json({
       ok: true,
-      keyId: process.env.RAZORPAY_KEY_ID,
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      registration: {
-        fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        programName: programName.trim()
-      }
+      message: 'Registration created. Complete UPI payment and upload proof.',
+      traineeId: result.insertId,
+      amount: amountInRupees(amount),
+      currency: 'INR',
+      upiVpa: UPI_VPA
     });
   } catch (error) {
     console.error('POST /api/payments/create-order failed:', error);
-    return res.status(500).json({ ok: false, message: 'Unable to create payment order' });
+    return res.status(500).json({ ok: false, message: 'Unable to create registration' });
   }
 });
 
 app.post('/api/payments/verify', async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ ok: false, message: 'Missing payment verification fields' });
-    }
-
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
-
-    if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ ok: false, message: 'Invalid payment signature' });
-    }
-
-    const [[existing]] = await pool.query('SELECT id, receipt_number FROM trainees WHERE razorpay_order_id = ?', [
-      razorpay_order_id
-    ]);
-
-    if (existing) {
-      return res.status(200).json({
-        ok: true,
-        message: 'Payment already verified',
-        traineeId: existing.id,
-        receiptNumber: existing.receipt_number
-      });
-    }
-
-    const orderData = await razorpay.orders.fetch(razorpay_order_id);
-    const notes = orderData.notes || {};
-
-    const fullName = notes.fullName || 'Unknown';
-    const email = (notes.email || '').toLowerCase();
-    const phone = notes.phone || '';
-    const programName = notes.programName || 'Unspecified Program';
-    const amountPaid = Number(orderData.amount) / 100;
-    const currency = orderData.currency || 'INR';
-    const receiptNumber = generateReceiptNumber();
-
-    const insertSql = `
-      INSERT INTO trainees
-      (receipt_number, full_name, email, phone, program_name, amount_paid, currency, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid')
-    `;
-
-    const values = [
-      receiptNumber,
-      fullName,
-      email,
-      phone,
-      programName,
-      amountPaid,
-      currency,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    ];
-
-    const [result] = await pool.execute(insertSql, values);
-
-    return res.status(201).json({
-      ok: true,
-      message: 'Payment verified and trainee registered',
-      traineeId: result.insertId,
-      receiptNumber,
-      transactionId: razorpay_payment_id
+    return res.status(410).json({
+      ok: false,
+      message: 'Razorpay flow is temporarily disabled. Use UPI proof flow from registration page.'
     });
   } catch (error) {
     console.error('POST /api/payments/verify failed:', error);
-    return res.status(500).json({ ok: false, message: 'Payment verification failed' });
+    return res.status(500).json({ ok: false, message: 'Payment verification endpoint error' });
+  }
+});
+
+app.post('/api/payments/upload-proof', upload.single('proofFile'), async (req, res) => {
+  try {
+    const traineeId = Number(req.body.traineeId);
+    const manualTxnId = req.body.manualTxnId ? String(req.body.manualTxnId).trim() : null;
+
+    if (!traineeId) {
+      return res.status(400).json({ ok: false, message: 'Invalid trainee id' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ ok: false, message: 'Payment proof file is required' });
+    }
+
+    const proofPath = `/uploads/${req.file.filename}`;
+    const updateSql = `
+      UPDATE trainees
+      SET payment_proof_path = ?,
+          manual_txn_id = ?,
+          payment_status = 'proof_submitted'
+      WHERE id = ?
+    `;
+
+    const [result] = await pool.execute(updateSql, [proofPath, manualTxnId, traineeId]);
+    if (!result.affectedRows) {
+      return res.status(404).json({ ok: false, message: 'Trainee not found for proof upload' });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Payment proof uploaded. Verification pending.',
+      traineeId,
+      proofPath
+    });
+  } catch (error) {
+    console.error('POST /api/payments/upload-proof failed:', error);
+    return res.status(500).json({ ok: false, message: 'Failed to upload payment proof' });
+  }
+});
+
+app.patch('/api/admin/verify-payment/:id', verifyAdminToken, async (req, res) => {
+  try {
+    const traineeId = Number(req.params.id);
+    const isApproved = Boolean(req.body.isApproved);
+    const verifierName = req.body.verifierName ? String(req.body.verifierName).trim() : 'admin';
+
+    if (!traineeId) {
+      return res.status(400).json({ ok: false, message: 'Invalid trainee id' });
+    }
+
+    const [[existing]] = await pool.execute('SELECT id, receipt_number, payment_status FROM trainees WHERE id = ?', [
+      traineeId
+    ]);
+
+    if (!existing) {
+      return res.status(404).json({ ok: false, message: 'Trainee not found' });
+    }
+
+    if (isApproved) {
+      const receiptNumber = existing.receipt_number || generateReceiptNumber();
+      await pool.execute(
+        `
+          UPDATE trainees
+          SET payment_status = 'paid',
+              receipt_number = ?,
+              verified_at = NOW(),
+              verified_by = ?
+          WHERE id = ?
+        `,
+        [receiptNumber, verifierName, traineeId]
+      );
+
+      return res.json({
+        ok: true,
+        message: 'Payment approved and receipt enabled',
+        traineeId,
+        receiptNumber
+      });
+    }
+
+    await pool.execute(
+      `
+        UPDATE trainees
+        SET payment_status = 'rejected',
+            verified_at = NOW(),
+            verified_by = ?
+        WHERE id = ?
+      `,
+      [verifierName, traineeId]
+    );
+
+    return res.json({ ok: true, message: 'Payment marked as rejected', traineeId });
+  } catch (error) {
+    console.error('PATCH /api/admin/verify-payment/:id failed:', error);
+    return res.status(500).json({ ok: false, message: 'Failed to update payment verification status' });
   }
 });
 
@@ -305,7 +370,10 @@ app.get('/api/trainees/:id', async (req, res) => {
         program_name,
         amount_paid,
         currency,
-        razorpay_payment_id,
+        manual_txn_id,
+        payment_proof_path,
+        verified_at,
+        verified_by,
         payment_status,
         registered_at
       FROM trainees
@@ -325,13 +393,13 @@ app.get('/api/trainees/:id', async (req, res) => {
   }
 });
 
-app.get('/api/trainees', async (req, res) => {
+app.get('/api/trainees', verifyAdminToken, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit || 25), 100);
     const [rows] = await pool.query(
       `
         SELECT id, receipt_number, full_name, email, phone, program_name, amount_paid,
-               currency, razorpay_payment_id, payment_status, registered_at
+           currency, manual_txn_id, payment_proof_path, verified_at, verified_by, payment_status, registered_at
         FROM trainees
         ORDER BY registered_at DESC
         LIMIT ?

@@ -4,24 +4,25 @@
 
 CREATE TABLE IF NOT EXISTS trainees (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  receipt_number VARCHAR(40) NOT NULL,
+  receipt_number VARCHAR(40) DEFAULT NULL,
   full_name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL,
   phone VARCHAR(20) NOT NULL,
   program_name VARCHAR(120) NOT NULL,
   amount_paid DECIMAL(10,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
-  razorpay_order_id VARCHAR(80) NOT NULL,
-  razorpay_payment_id VARCHAR(80) NOT NULL,
-  razorpay_signature VARCHAR(255) NOT NULL,
-  payment_status ENUM('paid','failed','refunded') NOT NULL DEFAULT 'paid',
+  manual_txn_id VARCHAR(120) DEFAULT NULL,
+  payment_proof_path VARCHAR(255) DEFAULT NULL,
+  verified_at DATETIME DEFAULT NULL,
+  verified_by VARCHAR(120) DEFAULT NULL,
+  payment_status ENUM('pending','proof_submitted','paid','rejected','refunded') NOT NULL DEFAULT 'pending',
   registered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_trainees_receipt_number (receipt_number),
-  UNIQUE KEY uq_trainees_order_id (razorpay_order_id),
-  UNIQUE KEY uq_trainees_payment_id (razorpay_payment_id),
+  UNIQUE KEY uq_trainees_manual_txn_id (manual_txn_id),
   KEY idx_trainees_email (email),
   KEY idx_trainees_program (program_name),
+  KEY idx_trainees_payment_status (payment_status),
   KEY idx_trainees_registered_at (registered_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

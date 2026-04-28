@@ -1,0 +1,13 @@
+# Node dependencies
+backend/node_modules/
+
+# Environment files
+backend/.env
+
+# Logs and runtime artifacts
+*.log
+backend/uploads/
+
+# OS/editor
+.DS_Store
+Thumbs.db

@@ -18,14 +18,14 @@
   <body>
     <main class="mx-auto max-w-3xl px-4 pb-12 pt-12 sm:px-6">
       <section class="rounded-3xl bg-white p-6 shadow-lg sm:p-8">
-        <p class="inline-block rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">Payment Verified</p>
+        <p id="statusPill" class="inline-block rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">Verification Pending</p>
         <h1 class="mt-3 text-4xl font-bold">Registration Successful</h1>
-        <p class="mt-2 text-slate-700">Your trainee registration has been confirmed.</p>
+        <p id="statusText" class="mt-2 text-slate-700">Your registration was submitted. Payment proof is under review.</p>
 
         <div id="receiptCard" class="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-5 text-sm text-slate-700"></div>
 
         <div class="mt-6 flex flex-wrap gap-3">
-          <button id="downloadPdfBtn" class="rounded-full bg-teal-700 px-6 py-3 text-sm font-semibold text-white hover:bg-teal-800">
+          <button id="downloadPdfBtn" class="rounded-full bg-teal-700 px-6 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400" disabled>
             Download PDF Receipt
           </button>
           <a href="index.html" class="rounded-full border border-teal-700 px-6 py-3 text-sm font-semibold text-teal-700 hover:bg-teal-50">Back to Home</a>
@@ -36,6 +36,8 @@
     <script src="assets/js/config.js"></script>
     <script src="assets/js/common.js"></script>
     <script>
+      const statusPill = document.getElementById('statusPill');
+      const statusText = document.getElementById('statusText');
       const receiptCard = document.getElementById('receiptCard');
       const downloadPdfBtn = document.getElementById('downloadPdfBtn');
       let receiptData = null;
@@ -48,7 +50,9 @@
           <p><strong>Phone:</strong> ${data.phone}</p>
           <p><strong>Program:</strong> ${data.program_name}</p>
           <p><strong>Amount:</strong> ${data.currency} ${Number(data.amount_paid).toFixed(2)}</p>
-          <p><strong>Transaction ID:</strong> ${data.razorpay_payment_id}</p>
+          <p><strong>Manual Transaction ID:</strong> ${data.manual_txn_id || 'Not submitted'}</p>
+          <p><strong>Payment Proof:</strong> ${data.payment_proof_path ? `<a class="text-teal-700 underline" href="${window.APP_CONFIG.API_BASE_URL}${data.payment_proof_path}" target="_blank" rel="noopener">View Proof</a>` : 'Not uploaded'}</p>
+          <p><strong>Status:</strong> ${data.payment_status}</p>
           <p><strong>Registered On:</strong> ${new Date(data.registered_at).toLocaleString()}</p>
         `;
       }
@@ -68,7 +72,7 @@
           `Phone: ${data.phone}`,
           `Program: ${data.program_name}`,
           `Amount Paid: ${data.currency} ${Number(data.amount_paid).toFixed(2)}`,
-          `Transaction ID: ${data.razorpay_payment_id}`,
+          `Transaction ID: ${data.manual_txn_id || 'NA'}`,
           `Payment Status: ${data.payment_status}`,
           `Date: ${new Date(data.registered_at).toLocaleString()}`
         ];
@@ -80,6 +84,39 @@
         });
 
         doc.save(`receipt-${data.receipt_number}.pdf`);
+      }
+
+      function updateStatusUi(data) {
+        const status = String(data.payment_status || '').toLowerCase();
+
+        if (status === 'paid') {
+          statusPill.textContent = 'Payment Verified';
+          statusPill.className = 'inline-block rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700';
+          statusText.textContent = 'Payment verified by admin. You can now download your receipt.';
+          downloadPdfBtn.disabled = false;
+          return;
+        }
+
+        if (status === 'proof_submitted') {
+          statusPill.textContent = 'Proof Submitted';
+          statusPill.className = 'inline-block rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700';
+          statusText.textContent = 'Your payment proof was uploaded. Waiting for admin verification.';
+          downloadPdfBtn.disabled = true;
+          return;
+        }
+
+        if (status === 'rejected') {
+          statusPill.textContent = 'Proof Rejected';
+          statusPill.className = 'inline-block rounded-full bg-red-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700';
+          statusText.textContent = 'Payment proof was rejected. Please contact support and upload valid proof again.';
+          downloadPdfBtn.disabled = true;
+          return;
+        }
+
+        statusPill.textContent = 'Verification Pending';
+        statusPill.className = 'inline-block rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700';
+        statusText.textContent = 'Registration submitted. Complete payment and upload proof if pending.';
+        downloadPdfBtn.disabled = true;
       }
 
       async function loadTraineeData() {
@@ -101,10 +138,14 @@
 
           receiptData = json.data;
           renderReceipt(receiptData);
+          updateStatusUi(receiptData);
 
-          // Auto-generate once on successful page load as requested.
-          generatePdfReceipt(receiptData);
-          showToast('Receipt loaded successfully', 'success');
+          if (String(receiptData.payment_status).toLowerCase() === 'paid') {
+            generatePdfReceipt(receiptData);
+            showToast('Payment verified. Receipt generated.', 'success');
+          } else {
+            showToast('Payment verification is pending', 'success');
+          }
         } catch (error) {
           showToast(error.message || 'Could not load receipt', 'error');
         }
@@ -113,6 +154,11 @@
       downloadPdfBtn.addEventListener('click', () => {
         if (!receiptData) {
           showToast('Receipt details not available yet', 'error');
+          return;
+        }
+
+        if (String(receiptData.payment_status).toLowerCase() !== 'paid') {
+          showToast('Receipt available only after payment verification', 'error');
           return;
         }
 
