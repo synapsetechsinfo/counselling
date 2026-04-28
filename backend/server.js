@@ -65,6 +65,18 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadsDir));
 
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    message: 'Counselling backend is running',
+    health: '/api/health'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.redirect('/api/health');
+});
+
 const PROGRAM_FEES = {
   'Emotional Wellness Certification': 199900,
   'Youth Counseling Intensive': 149900,
