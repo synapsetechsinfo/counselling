@@ -65,13 +65,8 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadsDir));
 
-app.get('/', (req, res) => {
-  res.json({
-    ok: true,
-    message: 'Counselling backend is running',
-    health: '/api/health'
-  });
-});
+const frontendDir = path.join(__dirname, '..', 'public_html');
+app.use(express.static(frontendDir));
 
 app.get('/health', (req, res) => {
   res.redirect('/api/health');
@@ -427,6 +422,10 @@ app.get('/api/trainees', verifyAdminToken, async (req, res) => {
 });
 
 app.use((req, res) => {
+  const indexFile = path.join(frontendDir, 'index.html');
+  if (fs.existsSync(indexFile)) {
+    return res.sendFile(indexFile);
+  }
   res.status(404).json({ ok: false, message: 'Route not found' });
 });
 
