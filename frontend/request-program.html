@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Request a Program | Dr. Ananya Rao</title>
+    <meta name="description" content="Submit an institutional counseling program request." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="sticky top-0 z-50 top-nav">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+          <a class="brand-display text-lg font-semibold" href="index.html">Dr. Ananya Rao</a>
+          <nav class="hidden gap-6 text-sm font-medium md:flex">
+            <a data-nav class="nav-link" href="index.html">Home</a>
+            <a data-nav class="nav-link" href="portfolio.html">Portfolio</a>
+            <a data-nav class="nav-link" href="programs.html">Programs</a>
+            <a data-nav class="nav-link" href="notices.html">Notices</a>
+            <a data-nav class="nav-link" href="request-program.html">Request</a>
+            <a data-nav class="nav-link" href="register.html">Register</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-3xl px-4 pb-12 pt-10 sm:px-6">
+      <h1 class="text-4xl font-bold">Program Request Form</h1>
+      <p class="mt-3 text-slate-700">For schools, NGOs, corporates, and institutions seeking custom counseling interventions.</p>
+
+      <form id="requestForm" class="mt-8 space-y-4 rounded-2xl bg-white p-6 shadow-lg">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm font-medium text-slate-700"
+            >Organization Name
+            <input required name="organizationName" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="text-sm font-medium text-slate-700"
+            >Contact Person
+            <input required name="contactPerson" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="text-sm font-medium text-slate-700"
+            >Email
+            <input required type="email" name="email" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="text-sm font-medium text-slate-700"
+            >Phone
+            <input required name="phone" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="text-sm font-medium text-slate-700 sm:col-span-2"
+            >Requested Program
+            <select required name="requestedProgram" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2">
+              <option value="">Select a program</option>
+              <option>Emotional Wellness Certification</option>
+              <option>Youth Counseling Intensive</option>
+              <option>Corporate Resilience Workshop</option>
+              <option>School Mental Health Program</option>
+            </select>
+          </label>
+          <label class="text-sm font-medium text-slate-700"
+            >Participants Estimate
+            <input type="number" min="1" name="participantsEstimate" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="text-sm font-medium text-slate-700"
+            >Preferred Date
+            <input type="date" name="preferredDate" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="text-sm font-medium text-slate-700 sm:col-span-2"
+            >Message
+            <textarea name="message" rows="4" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"></textarea>
+          </label>
+        </div>
+
+        <button id="submitBtn" type="submit" class="rounded-full bg-teal-700 px-6 py-3 text-sm font-semibold text-white hover:bg-teal-800">
+          Submit Program Request
+        </button>
+      </form>
+    </main>
+
+    <a id="waButton" class="wa-float" href="#" target="_blank" rel="noopener" aria-label="WhatsApp">
+      <span class="text-sm font-bold">WA</span>
+    </a>
+
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script>
+      const form = document.getElementById('requestForm');
+      const submitBtn = document.getElementById('submitBtn');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        const payload = Object.fromEntries(new FormData(form).entries());
+
+        try {
+          const response = await fetch(`${window.APP_CONFIG.API_BASE_URL}/api/program-requests`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.message || 'Submission failed');
+          }
+
+          showToast('Program request submitted successfully', 'success');
+          form.reset();
+        } catch (error) {
+          showToast(error.message || 'Could not submit request', 'error');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Program Request';
+        }
+      });
+    </script>
+  </body>
+</html>

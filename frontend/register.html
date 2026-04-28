@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trainee Registration | Dr. Ananya Rao</title>
+    <meta name="description" content="Register for counseling trainee programs and complete secure payment." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  </head>
+  <body>
+    <header class="sticky top-0 z-50 top-nav">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+          <a class="brand-display text-lg font-semibold" href="index.html">Dr. Ananya Rao</a>
+          <nav class="hidden gap-6 text-sm font-medium md:flex">
+            <a data-nav class="nav-link" href="index.html">Home</a>
+            <a data-nav class="nav-link" href="portfolio.html">Portfolio</a>
+            <a data-nav class="nav-link" href="programs.html">Programs</a>
+            <a data-nav class="nav-link" href="notices.html">Notices</a>
+            <a data-nav class="nav-link" href="request-program.html">Request</a>
+            <a data-nav class="nav-link" href="register.html">Register</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-3xl px-4 pb-12 pt-10 sm:px-6">
+      <h1 class="text-4xl font-bold">Trainee Registration</h1>
+      <p class="mt-3 text-slate-700">Step 1: Enter details. Step 2: Complete Razorpay checkout securely.</p>
+
+      <form id="registerForm" class="mt-8 space-y-4 rounded-2xl bg-white p-6 shadow-lg">
+        <label class="block text-sm font-medium text-slate-700"
+          >Full Name
+          <input required name="fullName" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+        </label>
+        <label class="block text-sm font-medium text-slate-700"
+          >Email
+          <input required type="email" name="email" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+        </label>
+        <label class="block text-sm font-medium text-slate-700"
+          >Phone
+          <input required name="phone" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" />
+        </label>
+        <label class="block text-sm font-medium text-slate-700"
+          >Program Selection
+          <select required name="programName" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2">
+            <option value="">Select program</option>
+            <option>Emotional Wellness Certification</option>
+            <option>Youth Counseling Intensive</option>
+            <option>Corporate Resilience Workshop</option>
+            <option>School Mental Health Program</option>
+          </select>
+        </label>
+
+        <button id="payBtn" type="submit" class="rounded-full bg-teal-700 px-6 py-3 text-sm font-semibold text-white hover:bg-teal-800">
+          Continue to Payment
+        </button>
+      </form>
+    </main>
+
+    <a id="waButton" class="wa-float" href="#" target="_blank" rel="noopener" aria-label="WhatsApp">
+      <span class="text-sm font-bold">WA</span>
+    </a>
+
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script>
+      const registerForm = document.getElementById('registerForm');
+      const payBtn = document.getElementById('payBtn');
+
+      registerForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        payBtn.disabled = true;
+        payBtn.textContent = 'Creating Order...';
+
+        const formData = Object.fromEntries(new FormData(registerForm).entries());
+
+        try {
+          const orderRes = await fetch(`${window.APP_CONFIG.API_BASE_URL}/api/payments/create-order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+          });
+
+          const orderData = await orderRes.json();
+          if (!orderRes.ok || !orderData.ok) {
+            throw new Error(orderData.message || 'Order creation failed');
+          }
+
+          const options = {
+            key: orderData.keyId || window.APP_CONFIG.RAZORPAY_KEY_ID,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            name: 'Dr. Ananya Rao Counseling',
+            description: orderData.registration.programName,
+            order_id: orderData.orderId,
+            prefill: {
+              name: orderData.registration.fullName,
+              email: orderData.registration.email,
+              contact: orderData.registration.phone
+            },
+            theme: {
+              color: '#0f766e'
+            },
+            handler: async function (response) {
+              try {
+                const verifyRes = await fetch(`${window.APP_CONFIG.API_BASE_URL}/api/payments/verify`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(response)
+                });
+
+                const verifyData = await verifyRes.json();
+                if (!verifyRes.ok || !verifyData.ok) {
+                  throw new Error(verifyData.message || 'Payment verification failed');
+                }
+
+                showToast('Payment successful and verified', 'success');
+                localStorage.setItem('latestReceipt', JSON.stringify({
+                  traineeId: verifyData.traineeId,
+                  receiptNumber: verifyData.receiptNumber,
+                  transactionId: verifyData.transactionId
+                }));
+                window.location.href = `success.html?traineeId=${verifyData.traineeId}`;
+              } catch (error) {
+                showToast(error.message || 'Verification failed', 'error');
+              }
+            },
+            modal: {
+              ondismiss: function () {
+                showToast('Payment window closed', 'error');
+              }
+            }
+          };
+
+          const rzp = new Razorpay(options);
+          rzp.on('payment.failed', function (eventInfo) {
+            const msg = eventInfo.error && eventInfo.error.description ? eventInfo.error.description : 'Payment failed';
+            showToast(msg, 'error');
+          });
+
+          rzp.open();
+        } catch (error) {
+          showToast(error.message || 'Unable to initiate payment', 'error');
+        } finally {
+          payBtn.disabled = false;
+          payBtn.textContent = 'Continue to Payment';
+        }
+      });
+    </script>
+  </body>
+</html>

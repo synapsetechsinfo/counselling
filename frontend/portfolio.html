@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portfolio | Dr. Ananya Rao</title>
+    <meta name="description" content="Portfolio of counseling events, workshops, and speaking sessions." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="sticky top-0 z-50 top-nav">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+          <a class="brand-display text-lg font-semibold" href="index.html">Dr. Ananya Rao</a>
+          <nav class="hidden gap-6 text-sm font-medium md:flex">
+            <a data-nav class="nav-link" href="index.html">Home</a>
+            <a data-nav class="nav-link" href="portfolio.html">Portfolio</a>
+            <a data-nav class="nav-link" href="programs.html">Programs</a>
+            <a data-nav class="nav-link" href="notices.html">Notices</a>
+            <a data-nav class="nav-link" href="request-program.html">Request</a>
+            <a data-nav class="nav-link" href="register.html">Register</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 pb-12 pt-10 sm:px-6 lg:px-8">
+      <h1 class="text-4xl font-bold">Professional Portfolio</h1>
+      <p class="mt-3 max-w-3xl text-slate-700">
+        Highlights from institutional workshops, faculty training sessions, and public mental wellness events.
+      </p>
+
+      <section class="mt-8">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-2xl font-semibold">Event Gallery</h2>
+          <span class="text-sm text-slate-500">Interactive learning spaces</span>
+        </div>
+
+        <div id="gallerySkeleton" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="skeleton h-48 rounded-2xl"></div>
+          <div class="skeleton h-48 rounded-2xl"></div>
+          <div class="skeleton h-48 rounded-2xl"></div>
+          <div class="skeleton h-48 rounded-2xl"></div>
+          <div class="skeleton h-48 rounded-2xl"></div>
+          <div class="skeleton h-48 rounded-2xl"></div>
+        </div>
+
+        <div id="galleryGrid" class="hidden grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </section>
+
+      <section class="mt-12">
+        <h2 class="text-2xl font-semibold">Featured Session Video</h2>
+        <p class="mt-2 text-sm text-slate-600">A short excerpt from a resilience-building workshop.</p>
+        <div class="mt-4 aspect-video overflow-hidden rounded-2xl bg-black shadow-xl">
+          <iframe
+            class="h-full w-full"
+            src="https://www.youtube.com/embed/3Q4qQ1N5Yd8"
+            title="Counseling Workshop"
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+          ></iframe>
+        </div>
+      </section>
+    </main>
+
+    <a id="waButton" class="wa-float" href="#" target="_blank" rel="noopener" aria-label="WhatsApp">
+      <span class="text-sm font-bold">WA</span>
+    </a>
+
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script>
+      (function () {
+        const images = [
+          {
+            src: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+            alt: 'Group workshop session'
+          },
+          {
+            src: 'https://images.unsplash.com/photo-1573497491208-6b1acb260507?auto=format&fit=crop&w=900&q=80',
+            alt: 'Corporate counseling training'
+          },
+          {
+            src: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=900&q=80',
+            alt: 'Interactive classroom program'
+          },
+          {
+            src: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=80',
+            alt: 'Institutional event stage'
+          },
+          {
+            src: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=900&q=80',
+            alt: 'Counselor speaking to audience'
+          },
+          {
+            src: 'https://images.unsplash.com/photo-1515168833906-d2a3b82b302a?auto=format&fit=crop&w=900&q=80',
+            alt: 'Team reflection circle'
+          }
+        ];
+
+        const skeleton = document.getElementById('gallerySkeleton');
+        const grid = document.getElementById('galleryGrid');
+
+        setTimeout(() => {
+          images.forEach((img) => {
+            const card = document.createElement('article');
+            card.className = 'card-lift overflow-hidden rounded-2xl bg-white shadow-md';
+            card.innerHTML = `<img src="${img.src}" alt="${img.alt}" loading="lazy" class="h-48 w-full object-cover" />`;
+            grid.appendChild(card);
+          });
+
+          skeleton.classList.add('hidden');
+          grid.classList.remove('hidden');
+        }, 900);
+      })();
+    </script>
+  </body>
+</html>

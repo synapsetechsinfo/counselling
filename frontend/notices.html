@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notice Board | Dr. Ananya Rao</title>
+    <meta name="description" content="Latest announcements, schedules, and counseling updates." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="sticky top-0 z-50 top-nav">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+          <a class="brand-display text-lg font-semibold" href="index.html">Dr. Ananya Rao</a>
+          <nav class="hidden gap-6 text-sm font-medium md:flex">
+            <a data-nav class="nav-link" href="index.html">Home</a>
+            <a data-nav class="nav-link" href="portfolio.html">Portfolio</a>
+            <a data-nav class="nav-link" href="programs.html">Programs</a>
+            <a data-nav class="nav-link" href="notices.html">Notices</a>
+            <a data-nav class="nav-link" href="request-program.html">Request</a>
+            <a data-nav class="nav-link" href="register.html">Register</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 pb-12 pt-10 sm:px-6 lg:px-8">
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <h1 class="text-4xl font-bold">Notice Board</h1>
+          <p class="mt-2 text-slate-700">Current active announcements fetched from the backend API.</p>
+        </div>
+        <button id="refreshBtn" class="rounded-full border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">
+          Refresh
+        </button>
+      </div>
+
+      <div id="noticeList" class="mt-8 grid gap-4"></div>
+      <p id="emptyState" class="mt-8 hidden rounded-2xl bg-white p-6 text-sm text-slate-600 shadow">No active notices at this moment.</p>
+    </main>
+
+    <a id="waButton" class="wa-float" href="#" target="_blank" rel="noopener" aria-label="WhatsApp">
+      <span class="text-sm font-bold">WA</span>
+    </a>
+
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script>
+      const noticeList = document.getElementById('noticeList');
+      const emptyState = document.getElementById('emptyState');
+      const refreshBtn = document.getElementById('refreshBtn');
+
+      function renderNotices(items) {
+        noticeList.innerHTML = '';
+        if (!items.length) {
+          emptyState.classList.remove('hidden');
+          return;
+        }
+
+        emptyState.classList.add('hidden');
+
+        items.forEach((notice) => {
+          const item = document.createElement('article');
+          item.className = 'card-lift rounded-2xl bg-white p-6 shadow';
+          item.innerHTML = `
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <span class="notice-pill">Active Notice</span>
+              <span class="text-xs text-slate-500">Priority ${notice.priority}</span>
+            </div>
+            <h2 class="text-xl font-semibold">${notice.title}</h2>
+            <p class="mt-2 text-sm text-slate-700">${notice.body}</p>
+          `;
+          noticeList.appendChild(item);
+        });
+      }
+
+      async function fetchNotices() {
+        try {
+          const response = await fetch(`${window.APP_CONFIG.API_BASE_URL}/api/notices`);
+          const data = await response.json();
+
+          if (!response.ok || !data.ok) {
+            throw new Error(data.message || 'Failed to fetch notices');
+          }
+
+          renderNotices(data.data || []);
+          showToast('Notices updated', 'success');
+        } catch (error) {
+          showToast(error.message || 'Unable to load notices', 'error');
+        }
+      }
+
+      refreshBtn.addEventListener('click', fetchNotices);
+      fetchNotices();
+    </script>
+  </body>
+</html>
