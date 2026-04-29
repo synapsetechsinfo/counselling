@@ -65,17 +65,40 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadsDir));
 
-const frontendCandidates = [
-  path.join(__dirname, '..', 'public_html'),
-  path.join(__dirname, '..', 'frontend')
-];
-const frontendDir = frontendCandidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
+function resolveFrontendDir() {
+  const envDir = process.env.FRONTEND_DIR
+    ? path.isAbsolute(process.env.FRONTEND_DIR)
+      ? process.env.FRONTEND_DIR
+      : path.resolve(__dirname, process.env.FRONTEND_DIR)
+    : null;
+
+  const candidates = [
+    envDir,
+    path.join(__dirname, '..', 'public_html'),
+    path.join(__dirname, 'public_html'),
+    path.join(__dirname, '..', 'frontend'),
+    path.join(process.cwd(), 'public_html'),
+    path.join(process.cwd(), 'frontend'),
+    path.join(__dirname, '..', '..', 'public_html')
+  ].filter(Boolean);
+
+  const uniqueCandidates = [...new Set(candidates)];
+  const foundDir = uniqueCandidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
+
+  if (!foundDir) {
+    console.warn('[frontend] index.html not found in any candidate directory.');
+    console.warn(`[frontend] checked: ${uniqueCandidates.join(' | ')}`);
+    return null;
+  }
+
+  console.log(`[frontend] serving static files from: ${foundDir}`);
+  return foundDir;
+}
+
+const frontendDir = resolveFrontendDir();
 
 if (frontendDir) {
-  console.log(`[frontend] serving static files from: ${frontendDir}`);
   app.use(express.static(frontendDir));
-} else {
-  console.warn('[frontend] index.html not found in public_html or frontend; root will return backend status JSON');
 }
 
 // Explicitly serve index.html for root so Hostinger Node.js doesn't intercept
@@ -84,7 +107,11 @@ app.get('/', (req, res) => {
     const indexFile = path.join(frontendDir, 'index.html');
     return res.sendFile(indexFile);
   }
-  res.json({ ok: true, message: 'Counselling backend running', health: '/api/health' });
+  res.status(503).json({
+    ok: false,
+    message: 'Frontend index.html not found on server',
+    health: '/api/health'
+  });
 });
 
 app.get('/health', (req, res) => {
@@ -441,8 +468,8 @@ app.get('/api/trainees', verifyAdminToken, async (req, res) => {
 });
 
 app.use((req, res) => {
-  const indexFile = path.join(frontendDir, 'index.html');
-  if (fs.existsSync(indexFile)) {
+  if (frontendDir) {
+    const indexFile = path.join(frontendDir, 'index.html');
     return res.sendFile(indexFile);
   }
   res.status(404).json({ ok: false, message: 'Route not found' });
