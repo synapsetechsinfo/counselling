@@ -65,13 +65,23 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadsDir));
 
-const frontendDir = path.join(__dirname, '..', 'public_html');
-app.use(express.static(frontendDir));
+const frontendCandidates = [
+  path.join(__dirname, '..', 'public_html'),
+  path.join(__dirname, '..', 'frontend')
+];
+const frontendDir = frontendCandidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
+
+if (frontendDir) {
+  console.log(`[frontend] serving static files from: ${frontendDir}`);
+  app.use(express.static(frontendDir));
+} else {
+  console.warn('[frontend] index.html not found in public_html or frontend; root will return backend status JSON');
+}
 
 // Explicitly serve index.html for root so Hostinger Node.js doesn't intercept
 app.get('/', (req, res) => {
-  const indexFile = path.join(frontendDir, 'index.html');
-  if (fs.existsSync(indexFile)) {
+  if (frontendDir) {
+    const indexFile = path.join(frontendDir, 'index.html');
     return res.sendFile(indexFile);
   }
   res.json({ ok: true, message: 'Counselling backend running', health: '/api/health' });
